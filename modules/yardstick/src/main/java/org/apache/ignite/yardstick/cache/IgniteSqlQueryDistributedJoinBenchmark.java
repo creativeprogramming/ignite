@@ -49,10 +49,8 @@ public class IgniteSqlQueryDistributedJoinBenchmark extends IgniteCacheAbstractB
 
         long start = System.nanoTime();
 
-        int personCnt = 0;
-
         try (IgniteDataStreamer<Object, Object> dataLdr = ignite().dataStreamer(cache.getName())) {
-            orgRange = args.range() / 10;
+            orgRange = args.range();
 
             if (orgRange <= 0)
                 throw new IllegalArgumentException();
@@ -61,29 +59,14 @@ public class IgniteSqlQueryDistributedJoinBenchmark extends IgniteCacheAbstractB
             for (int orgId = 0; orgId < orgRange; orgId++) {
                 dataLdr.addData(orgId, new Organization(orgId, "org" + orgId));
 
-                if (orgId % 1000 == 0 && Thread.currentThread().isInterrupted())
-                    return;
-            }
+                int personId = orgRange + orgId;
 
-            dataLdr.flush();
+                Person p = new Person(personId,
+                    orgId,
+                    "firstName" + personId,
+                    "lastName" + personId, 1000);
 
-            // Populate persons.
-            for (int orgId = 0; orgId < orgRange; orgId++) {
-                int persons = orgId % 10 + 1;
-
-                for (int j = 0; j < persons; j++) {
-                    int personId = orgRange + personCnt++;
-
-                    Person p = new Person(personId,
-                        orgId,
-                        "firstName" + personId,
-                        "lastName" + personId, 1000);
-
-                    dataLdr.addData(personId, p);
-                }
-
-                if (personCnt % 100000 == 0)
-                    println(cfg, "Populated persons: " + personCnt);
+                dataLdr.addData(personId, p);
 
                 if (orgId % 1000 == 0 && Thread.currentThread().isInterrupted())
                     return;
@@ -93,7 +76,7 @@ public class IgniteSqlQueryDistributedJoinBenchmark extends IgniteCacheAbstractB
         }
 
         println(cfg, "Finished populating join query [orgCnt=" + orgRange +
-            ", personCnt=" + personCnt +
+            ", personCnt=" + orgRange +
             ", broadcastJoin=" + broadcast +
             ", time=" + ((System.nanoTime() - start) / 1_000_000) + "ms]");
 
@@ -113,7 +96,7 @@ public class IgniteSqlQueryDistributedJoinBenchmark extends IgniteCacheAbstractB
 
         Collection<List<?>> res = executeQueryJoin(orgId, broadcast, false);
 
-        int persons = orgId % 10 + 1;
+        int persons = 1;
 
         if (res.size() != persons)
             throw new Exception("Invalid join result [orgId=" + orgId + ", resSize=" + res.size() + ']');
