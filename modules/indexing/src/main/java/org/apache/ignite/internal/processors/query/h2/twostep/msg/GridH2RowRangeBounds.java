@@ -18,6 +18,7 @@
 package org.apache.ignite.internal.processors.query.h2.twostep.msg;
 
 import java.nio.ByteBuffer;
+import java.util.Objects;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.plugin.extensions.communication.Message;
 import org.apache.ignite.plugin.extensions.communication.MessageReader;
@@ -92,6 +93,26 @@ public class GridH2RowRangeBounds implements Message {
      */
     public GridH2RowMessage last() {
         return last;
+    }
+
+    /** {@inheritDoc} */
+    @Override public boolean equals(Object o) {
+        if (this == o)
+            return true;
+
+        if (o == null || getClass() != o.getClass())
+            return false;
+
+        GridH2RowRangeBounds that = (GridH2RowRangeBounds)o;
+
+        return Objects.equals(first, that.first) && Objects.equals(last, that.last);
+    }
+
+    /** {@inheritDoc} */
+    @Override public int hashCode() {
+        int res = first != null ? first.hashCode() : 0;
+        res = 31 * res + (last != null ? last.hashCode() : 0);
+        return res;
     }
 
     /** {@inheritDoc} */

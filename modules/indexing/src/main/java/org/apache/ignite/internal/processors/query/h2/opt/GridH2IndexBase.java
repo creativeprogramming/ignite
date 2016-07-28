@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -103,7 +104,7 @@ public abstract class GridH2IndexBase extends BaseIndex {
     private static final AtomicLong idxIdGen = new AtomicLong();
 
     /** */
-    protected final long idxId = idxIdGen.incrementAndGet();
+    private final long idxId = idxIdGen.incrementAndGet();
 
     /** */
     private final ThreadLocal<Object> snapshot = new ThreadLocal<>();
@@ -1064,23 +1065,18 @@ public abstract class GridH2IndexBase extends BaseIndex {
 
                 RangeStream stream = rangeStreams.get(node);
 
-                List<GridH2RowRangeBounds> bounds;
-
                 if (stream == null) {
                     stream = new RangeStream(qctx, node);
 
                     stream.req = createRequest(qctx, batchLookupId);
-                    stream.req.bounds(bounds = new ArrayList<>());
 
                     rangeStreams.put(node, stream);
                 }
-                else
-                    bounds = stream.req.bounds();
 
-                bounds.add(rangeBounds);
+                stream.add(rangeBounds);
 
                 // If at least one node will have a full batch then we are ok.
-                if (bounds.size() >= qctx.pageSize())
+                if (stream.boundsMap.size() >= qctx.pageSize())
                     batchFull = true;
             }
 
@@ -1151,6 +1147,26 @@ public abstract class GridH2IndexBase extends BaseIndex {
     }
 
     /**
+     *
+     */
+    static class RangeCursor extends GridH2Cursor {
+        /** */
+        private int rangeId;
+
+        /**
+         * @param iter Iterator.
+         * @param rangeId Range ID.
+         */
+        public RangeCursor(Iterator<? extends Row> iter, int rangeId) {
+            super(iter);
+            this.rangeId = rangeId;
+        }
+    }
+
+    /** */
+    static final RangeCursor EMPTY_CURSOR = new RangeCursor(Collections.<Row>emptyIterator(), -1);
+
+    /**
      * Per node range stream.
      */
     private class RangeStream {
@@ -1173,10 +1189,22 @@ public abstract class GridH2IndexBase extends BaseIndex {
         Iterator<GridH2RowRange> ranges = emptyIterator();
 
         /** */
-        Cursor cursor = GridH2Cursor.EMPTY;
+        RangeCursor cursor = EMPTY_CURSOR;
+
+        /** */
+        RangeCursor dupCursor;
 
         /** */
         int cursorRangeId = -1;
+
+        /** */
+        Map<GridH2RowRangeBounds, Integer> boundsMap = new LinkedHashMap<>();
+
+        /** */
+        Map<Integer, Integer> dupRanges;
+
+        /** */
+        Map<Integer, List<GridH2RowRange>> rcvdDupRanges;
 
         /**
          * @param qctx Query context.
@@ -1187,16 +1215,40 @@ public abstract class GridH2IndexBase extends BaseIndex {
             this.qctx = qctx;
         }
 
+        void add(GridH2RowRangeBounds bounds) {
+            Integer old = boundsMap.get(bounds);
+
+            if (old != null) {
+                if (dupRanges == null) {
+                    dupRanges = new HashMap<>();
+                    rcvdDupRanges = new HashMap<>();
+                }
+
+                assert old < bounds.rangeId();
+
+                dupRanges.put(bounds.rangeId(), old);
+
+                rcvdDupRanges.put(old, new ArrayList<GridH2RowRange>());
+            }
+            else
+                boundsMap.put(bounds, bounds.rangeId());
+        }
+
         /**
          * Start streaming.
          */
         private void start() {
-            remainingRanges = req.bounds().size();
+            remainingRanges = boundsMap.size();
 
             assert remainingRanges > 0;
 
             if (log.isDebugEnabled())
                 log.debug("Starting stream: [node=" + node + ", req=" + req + "]");
+
+            req.bounds(new ArrayList<GridH2RowRangeBounds>(remainingRanges));
+
+            for (GridH2RowRangeBounds b : boundsMap.keySet())
+                req.bounds().add(b);
 
             send(singletonList(node), req);
         }
@@ -1204,7 +1256,7 @@ public abstract class GridH2IndexBase extends BaseIndex {
         /**
          * @param msg Response.
          */
-        public void onResponse(GridH2IndexRangeResponse msg) {
+        void onResponse(GridH2IndexRangeResponse msg) {
             respQueue.add(msg);
         }
 
@@ -1286,11 +1338,58 @@ public abstract class GridH2IndexBase extends BaseIndex {
             }
         }
 
+        private Iterator<GridH2RowRange> duplicatedRange(int rangeId) {
+            Integer dupRange = dupRanges != null ? dupRanges.remove(rangeId) : null;
+
+            if (dupRange != null) {
+                List<GridH2RowRange> ranges = rcvdDupRanges != null ? rcvdDupRanges.get(dupRange) : null;
+
+                if (!F.isEmpty(ranges))
+                    return ranges.iterator();
+            }
+
+            return null;
+        }
+
         /**
          * @param rangeId Requested range ID.
          * @return {@code true} If next row for the requested range was found.
          */
         private boolean next(final int rangeId) {
+            if (dupCursor != null && dupCursor.rangeId == rangeId && dupCursor.next())
+                return true;
+            else
+                dupCursor = null;
+
+            Iterator<GridH2RowRange> rcvdRanges = duplicatedRange(rangeId);
+
+            if (rcvdRanges != null) {
+                GridH2RowRange range = rcvdRanges.next();
+
+                if (!F.isEmpty(range.rows())) {
+                    final Iterator<GridH2RowMessage> it = range.rows().iterator();
+
+                    if (it.hasNext()) {
+                        dupCursor = new RangeCursor(new Iterator<Row>() {
+                            @Override public boolean hasNext() {
+                                return it.hasNext();
+                            }
+
+                            @Override public Row next() {
+                                return toRow(it.next());
+                            }
+
+                            @Override public void remove() {
+                                throw new UnsupportedOperationException();
+                            }
+                        }, rangeId);
+
+                        if (dupCursor.next())
+                            return true;
+                    }
+                }
+            }
+
             for (;;) {
                 if (rangeId == cursorRangeId) {
                     if (cursor.next())
@@ -1299,7 +1398,7 @@ public abstract class GridH2IndexBase extends BaseIndex {
                 else if (rangeId < cursorRangeId)
                     return false;
 
-                cursor = GridH2Cursor.EMPTY;
+                cursor = EMPTY_CURSOR;
 
                 while (!ranges.hasNext()) {
                     if (remainingRanges == 0) {
@@ -1315,11 +1414,17 @@ public abstract class GridH2IndexBase extends BaseIndex {
 
                 cursorRangeId = range.rangeId();
 
+                if (rcvdDupRanges != null && rcvdDupRanges.containsKey(cursorRangeId)) {
+                    List<GridH2RowRange> ranges = rcvdDupRanges.get(range.rangeId());
+
+                    ranges.add(range);
+                }
+
                 if (!F.isEmpty(range.rows())) {
                     final Iterator<GridH2RowMessage> it = range.rows().iterator();
 
                     if (it.hasNext()) {
-                        cursor = new GridH2Cursor(new Iterator<Row>() {
+                        cursor = new RangeCursor(new Iterator<Row>() {
                             @Override public boolean hasNext() {
                                 return it.hasNext();
                             }
@@ -1332,7 +1437,7 @@ public abstract class GridH2IndexBase extends BaseIndex {
                             @Override public void remove() {
                                 throw new UnsupportedOperationException();
                             }
-                        });
+                        }, range.rangeId());
                     }
                 }
             }
@@ -1343,7 +1448,9 @@ public abstract class GridH2IndexBase extends BaseIndex {
          * @return Current row.
          */
         private Row get(int rangeId) {
-            assert rangeId == cursorRangeId;
+            RangeCursor cursor = dupCursor != null ? dupCursor : this.cursor;
+
+            assert rangeId == cursor.rangeId;
 
             return cursor.get();
         }
@@ -1443,6 +1550,7 @@ public abstract class GridH2IndexBase extends BaseIndex {
                     // We have to return empty range here.
                     GridH2RowRange emptyRange = new GridH2RowRange();
 
+                    emptyRange.rows(Collections.<GridH2RowMessage>emptyList());
                     emptyRange.rangeId(curRangeId);
 
                     return emptyRange;

@@ -53,6 +53,17 @@ public class GridH2Short extends GridH2ValueMessage {
     }
 
     /** {@inheritDoc} */
+    @Override public boolean equals(Object obj) {
+        return obj == this ||
+            (obj != null && obj.getClass() == GridH2Short.class && x == ((GridH2Short)obj).x);
+    }
+
+    /** {@inheritDoc} */
+    @Override public int hashCode() {
+        return x;
+    }
+
+    /** {@inheritDoc} */
     @Override public boolean writeTo(ByteBuffer buf, MessageWriter writer) {
         writer.setBuffer(buf);
 

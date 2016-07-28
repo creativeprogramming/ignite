@@ -51,6 +51,24 @@ public class GridH2RowMessage implements Message {
     }
 
     /** {@inheritDoc} */
+    @Override public boolean equals(Object o) {
+        if (this == o)
+            return true;
+
+        if (o == null || getClass() != o.getClass())
+            return false;
+
+        GridH2RowMessage that = (GridH2RowMessage)o;
+
+        return vals != null ? vals.equals(that.vals) : that.vals == null;
+    }
+
+    /** {@inheritDoc} */
+    @Override public int hashCode() {
+        return vals != null ? vals.hashCode() : 0;
+    }
+
+    /** {@inheritDoc} */
     @Override public boolean writeTo(ByteBuffer buf, MessageWriter writer) {
         writer.setBuffer(buf);
 

@@ -55,6 +55,17 @@ public class GridH2Date extends GridH2ValueMessage {
     }
 
     /** {@inheritDoc} */
+    @Override public boolean equals(Object obj) {
+        return obj == this ||
+            (obj != null && obj.getClass() == GridH2Date.class && date == ((GridH2Date)obj).date);
+    }
+
+    /** {@inheritDoc} */
+    @Override public int hashCode() {
+        return (int)(date ^ (date >>> 32));
+    }
+
+    /** {@inheritDoc} */
     @Override public boolean writeTo(ByteBuffer buf, MessageWriter writer) {
         writer.setBuffer(buf);
 

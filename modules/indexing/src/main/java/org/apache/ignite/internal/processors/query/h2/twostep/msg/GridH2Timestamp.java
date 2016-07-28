@@ -54,6 +54,28 @@ public class GridH2Timestamp extends GridH2ValueMessage {
     }
 
     /** {@inheritDoc} */
+    @Override public boolean equals(Object obj) {
+        if (obj == this)
+            return true;
+
+        if (obj.getClass() == GridH2Timestamp.class) {
+            GridH2Timestamp other = (GridH2Timestamp)obj;
+
+            return date == other.date && nanos == other.nanos;
+        }
+
+        return false;
+    }
+
+    /** {@inheritDoc} */
+    @Override public int hashCode() {
+        int res = super.hashCode();
+        res = 31 * res + (int) (date ^ (date >>> 32));
+        res = 31 * res + (int) (nanos ^ (nanos >>> 32));
+        return res;
+    }
+
+    /** {@inheritDoc} */
     @Override public Value value(GridKernalContext ctx) {
         return ValueTimestamp.fromDateValueAndNanos(date, nanos);
     }

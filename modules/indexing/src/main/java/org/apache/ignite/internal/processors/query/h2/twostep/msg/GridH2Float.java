@@ -53,6 +53,17 @@ public class GridH2Float extends GridH2ValueMessage {
     }
 
     /** {@inheritDoc} */
+    @Override public boolean equals(Object obj) {
+        return obj == this ||
+            (obj != null && obj.getClass() == GridH2Float.class && x == ((GridH2Float)obj).x);
+    }
+
+    /** {@inheritDoc} */
+    @Override public int hashCode() {
+        return Float.floatToIntBits(x);
+    }
+
+    /** {@inheritDoc} */
     @Override public boolean writeTo(ByteBuffer buf, MessageWriter writer) {
         writer.setBuffer(buf);
 

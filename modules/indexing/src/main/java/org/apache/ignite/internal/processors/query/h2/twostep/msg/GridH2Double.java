@@ -48,6 +48,19 @@ public class GridH2Double extends GridH2ValueMessage {
     }
 
     /** {@inheritDoc} */
+    @Override public boolean equals(Object obj) {
+        return obj == this ||
+            (obj != null && obj.getClass() == GridH2Double.class && x == ((GridH2Double)obj).x);
+    }
+
+    /** {@inheritDoc} */
+    @Override public int hashCode() {
+        long bits = Double.doubleToLongBits(x);
+
+        return (int)(bits ^ (bits >>> 32));
+    }
+
+    /** {@inheritDoc} */
     @Override public Value value(GridKernalContext ctx) {
         return ValueDouble.get(x);
     }

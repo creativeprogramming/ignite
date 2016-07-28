@@ -59,6 +59,28 @@ public class GridH2Uuid extends GridH2ValueMessage {
     }
 
     /** {@inheritDoc} */
+    @Override public boolean equals(Object obj) {
+        if (obj == this)
+            return true;
+
+        if (obj.getClass() == GridH2Uuid.class) {
+            GridH2Uuid other = (GridH2Uuid)obj;
+
+            return high == other.high && low == other.low;
+        }
+
+        return false;
+    }
+
+    /** {@inheritDoc} */
+    @Override public int hashCode() {
+        int res = super.hashCode();
+        res = 31 * res + (int) (high ^ (high >>> 32));
+        res = 31 * res + (int) (low ^ (low >>> 32));
+        return res;
+    }
+
+    /** {@inheritDoc} */
     @Override public boolean writeTo(ByteBuffer buf, MessageWriter writer) {
         writer.setBuffer(buf);
 

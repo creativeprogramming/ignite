@@ -53,6 +53,17 @@ public class GridH2Boolean extends GridH2ValueMessage {
     }
 
     /** {@inheritDoc} */
+    @Override public boolean equals(Object obj) {
+        return obj == this ||
+            (obj != null && obj.getClass() == GridH2Boolean.class && x == ((GridH2Boolean)obj).x);
+    }
+
+    /** {@inheritDoc} */
+    @Override public int hashCode() {
+        return x ? 1231 : 1237;
+    }
+
+    /** {@inheritDoc} */
     @Override public boolean writeTo(ByteBuffer buf, MessageWriter writer) {
         writer.setBuffer(buf);
 

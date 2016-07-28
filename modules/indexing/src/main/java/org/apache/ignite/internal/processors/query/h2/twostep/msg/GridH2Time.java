@@ -18,6 +18,7 @@
 package org.apache.ignite.internal.processors.query.h2.twostep.msg;
 
 import java.nio.ByteBuffer;
+import java.util.Objects;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.plugin.extensions.communication.MessageReader;
 import org.apache.ignite.plugin.extensions.communication.MessageWriter;
@@ -49,6 +50,16 @@ public class GridH2Time extends GridH2ValueMessage {
         nanos = t.getNanos();
     }
 
+    /** {@inheritDoc} */
+    @Override public boolean equals(Object obj) {
+        return obj == this ||
+            (obj != null && obj.getClass() == GridH2Time.class && nanos == ((GridH2Time)obj).nanos);
+    }
+
+    /** {@inheritDoc} */
+    @Override public int hashCode() {
+        return (int)nanos;
+    }
 
     /** {@inheritDoc} */
     @Override public Value value(GridKernalContext ctx) {

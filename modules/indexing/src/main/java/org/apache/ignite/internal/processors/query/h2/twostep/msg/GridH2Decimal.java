@@ -20,6 +20,8 @@ package org.apache.ignite.internal.processors.query.h2.twostep.msg;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.util.Objects;
+import org.apache.ignite.internal.GridDirectTransient;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.plugin.extensions.communication.MessageReader;
 import org.apache.ignite.plugin.extensions.communication.MessageWriter;
@@ -38,6 +40,10 @@ public class GridH2Decimal extends GridH2ValueMessage {
     /** */
     private byte[] b;
 
+    /** */
+    @GridDirectTransient
+    private BigDecimal x;
+
     /**
      *
      */
@@ -53,8 +59,21 @@ public class GridH2Decimal extends GridH2ValueMessage {
 
         BigDecimal x = val.getBigDecimal();
 
+        this.x = x;
+
         scale = x.scale();
         b = x.unscaledValue().toByteArray();
+    }
+
+    /** {@inheritDoc} */
+    @Override public boolean equals(Object obj) {
+        return obj == this ||
+            (obj != null && obj.getClass() == GridH2Decimal.class && Objects.equals(x, ((GridH2Decimal)obj).x));
+    }
+
+    /** {@inheritDoc} */
+    @Override public int hashCode() {
+        return x != null ? x.hashCode() : 0;
     }
 
     /** {@inheritDoc} */

@@ -43,6 +43,18 @@ public abstract class GridH2ValueMessage implements Message {
         // No-op.
     }
 
+    @Override public int hashCode() {
+        assert false : this.getClass();
+
+        return 0;
+    }
+
+    @Override public boolean equals(Object obj) {
+        assert false : this.getClass();
+
+        return false;
+    }
+
     /** {@inheritDoc} */
     @Override public boolean writeTo(ByteBuffer buf, MessageWriter writer) {
         return true;
